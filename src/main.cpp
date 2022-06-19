@@ -1,31 +1,34 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <Ticker.h>
-#include <WiFiClient.h>
 #include <WebServer.h>
+#include <Preferences.h>
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
 
 #ifndef APSSID
-#define APSSID "ESPap"
-#define APPSK "thereisnospoon"
+#define APSSID "Pils"
+#define APPSK "pilserdigg"
 #endif
 
 /* Set these to your desired credentials. */
 const char *ssidA = APSSID;
 const char *passwordA = APPSK;
 
-WebServer server(80);
-
 String getBatchUrl = "https://pilscontroller.herokuapp.com/api/batch";
 const char *ssid = "Lauk";
 const char *password = "SANDEFJORD";
 bool ledOn = false;
-Ticker ticker;
-Ticker ledTicker;
+
+unsigned long ledTimerStart;
+unsigned long getBatchTimerStart;
+unsigned long tryReconnectTimerStart;
+
+HTTPClient http;
+WebServer server(80);
+Preferences preferences;
 
 String getWifiStatusText()
 {
@@ -48,6 +51,8 @@ String getWifiStatusText()
     return "Scan complete";
   case WL_NO_SHIELD:
     return "No shield";
+  default:
+    return "Unknown error";
   }
 }
 
@@ -124,24 +129,24 @@ void handleForm()
 
     String ssidString = server.arg(1);
     String passwordString = server.arg(0);
+
+    // Save
+    preferences.begin("pils-app", false);
+    preferences.putString("ssid", ssidString);
+    preferences.putString("password", passwordString);
+    preferences.end();
+
     char ssid[100];
     char password[100];
     ssidString.toCharArray(ssid, ssidString.length() + 1);
     passwordString.toCharArray(password, passwordString.length() + 1);
 
     WiFi.begin(ssid, password);
-    // Broadcast to arduino
-    Serial.println();
-    Serial.print("ssid=" + String(ssid));
-    Serial.println();
-    Serial.print("password=" + String(password));
-    Serial.println();
-    Serial.print("Connecting");
 
     int retries = 0;
 
     while (WiFi.status() != WL_CONNECTED && retries <= 10)
-    { // Wait for the Wi-Fi to connect
+    {
       delay(500);
       Serial.print(".");
       retries++;
@@ -159,31 +164,38 @@ void handleForm()
   }
 }
 
-void initWiFi()
+void tryReconnectWifi()
 {
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi ..");
-  int k = 0;
-  while (WiFi.status() != WL_CONNECTED && k < 10)
-  {
-    Serial.print('.');
-    delay(500);
-    k++;
-  }
-
   if (WiFi.status() != WL_CONNECTED)
   {
-    ESP.restart();
+    bool storeOpened = preferences.begin("pils-app", true);
+    if (storeOpened == false)
+    {
+      preferences.end();
+      return;
+    }
+    String storedSsid = preferences.getString("ssid");
+    String storedpassword = preferences.getString("password");
+    if (storedpassword != NULL && storedSsid != NULL)
+    {
+      char ssid[100];
+      char password[100];
+      storedSsid.toCharArray(ssid, storedSsid.length() + 1);
+      storedpassword.toCharArray(password, storedpassword.length() + 1);
+      preferences.end();
+      WiFi.begin(ssid, password);
+    }
+    else
+    {
+      preferences.end();
+    }
   }
-
-  Serial.println(WiFi.localIP());
 }
 
 void getBatch()
 {
   if (WiFi.status() == WL_CONNECTED)
   {
-    HTTPClient http;
     Serial.println("Starting get batch");
     http.begin(getBatchUrl);
     http.setTimeout(3000);
@@ -230,6 +242,13 @@ void turnLedOnOff()
   }
 }
 
+void initTimers()
+{
+  ledTimerStart = millis();
+  getBatchTimerStart = millis();
+  tryReconnectTimerStart = millis();
+}
+
 void setup()
 {
   pinMode(LED_BUILTIN, OUTPUT);
@@ -238,7 +257,6 @@ void setup()
   Serial.print("Configuring access point...");
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAP(ssidA, passwordA);
-  digitalWrite(BUILTIN_LED, HIGH);
   IPAddress myIP = WiFi.softAPIP();
   Serial.print("AP IP address: ");
   Serial.println(myIP);
@@ -246,15 +264,30 @@ void setup()
   server.begin();
   Serial.println("HTTP server started");
 
-  delay(1000);
-
   Serial.println("Starting timers");
-  ticker.attach(10, getBatch);
-  ledTicker.attach(1, turnLedOnOff);
+  initTimers();
   Serial.println("Init done");
 }
 
 void loop()
 {
   server.handleClient();
+
+  if (millis() - ledTimerStart >= 1000)
+  {
+    ledTimerStart = millis();
+    turnLedOnOff();
+  }
+
+  if (millis() - getBatchTimerStart >= 10000)
+  {
+    getBatchTimerStart = millis();
+    getBatch();
+  }
+
+  if (millis() - tryReconnectTimerStart >= 10000)
+  {
+    tryReconnectTimerStart = millis();
+    tryReconnectWifi();
+  }
 }
