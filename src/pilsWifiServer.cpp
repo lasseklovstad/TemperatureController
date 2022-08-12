@@ -106,8 +106,8 @@ void PilsWifiServer::handleForm()
 
         // Save
         preferences.begin("pils-app", false);
-        preferences.putString("ssid", ssidString);
-        preferences.putString("password", passwordString);
+        preferences.putString("ssid", ssidString.c_str());
+        preferences.putString("password", passwordString.c_str());
         preferences.end();
 
         char ssid[100];
@@ -140,30 +140,26 @@ void PilsWifiServer::handleForm()
 
 void PilsWifiServer::tryReconnectWifi()
 {
-    if (WiFi.status() != WL_CONNECTED)
+    if (!isConnected())
     {
         bool storeOpened = preferences.begin("pils-app", true);
-        if (storeOpened == false)
+        String storedSsid = preferences.getString("ssid", "");
+        String storedpassword = preferences.getString("password", "");
+
+        if (storeOpened && storedpassword != "" && storedSsid != "")
         {
-            preferences.end();
-            return;
-        }
-        String storedSsid = preferences.getString("ssid");
-        String storedpassword = preferences.getString("password");
-        Serial.println("Connecting to: " + storedSsid);
-        if (storedpassword != NULL && storedSsid != NULL)
-        {
+            Serial.println("Connecting to: " + storedSsid);
             char ssid[100];
             char password[100];
             storedSsid.toCharArray(ssid, storedSsid.length() + 1);
             storedpassword.toCharArray(password, storedpassword.length() + 1);
-            preferences.end();
             WiFi.begin(ssid, password);
         }
         else
         {
-            preferences.end();
+            Serial.println("No ssid and password stored");
         }
+        preferences.end();
     }
 }
 
@@ -173,7 +169,7 @@ void PilsWifiServer::setup()
     WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(ssid, password);
     IPAddress myIP = WiFi.softAPIP();
-    server.on("/", std::bind(handleForm, this));
+    server.on("/", std::bind(&PilsWifiServer::handleForm, this));
     server.begin();
 }
 
