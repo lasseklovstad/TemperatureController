@@ -5,19 +5,15 @@
 #include <WebServer.h>
 #include <Preferences.h>
 #include <pilsUtils.h>
-
-#ifndef APSSID
-#define APSSID "Pils"
-#define APPSK "pilserdigg"
-#endif
+#include <secrets.h>
 
 class PilsWifiServer
 {
 private:
     WebServer server;
     Preferences preferences;
-    const char *ssid = APSSID;
-    const char *password = APPSK;
+    const char *ssid = SECRET_WIFI_SSID;
+    const char *password = SECRET_WIFI_PASSWORD;
 
     void handleForm();
 

@@ -11,7 +11,7 @@ void PilsHttpClient::sendWarmTemperatureBatch(String warmBatchId, float temperat
         url.replace(":batchId", warmBatchId);
         http.begin(url);
         http.setTimeout(3000);
-        http.addHeader("xxxauth", "halla");
+        http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
         int httpCode = http.POST(String(temperatureC));
         if (httpCode > 0)
         {
@@ -37,11 +37,16 @@ float PilsHttpClient::getTemperature()
     OneWire oneWire(oneWireBus);
     sensors.setOneWire(&oneWire);
     sensors.begin();
+    int deviceCount = sensors.getDeviceCount();
+
+    Serial.println("Temperature devices: " + deviceCount);
+
     sensors.requestTemperatures();
-    float temperatureC = sensors.getTempCByIndex(0);
-    Serial.print(temperatureC);
-    Serial.println("ºC");
-    return temperatureC;
+    float temperatureC1 = sensors.getTempCByIndex(0);
+    float temperatureC2 = sensors.getTempCByIndex(1);
+    Serial.println("Temp 1: " + String(temperatureC1) + "ºC");
+    Serial.println("Temp 2: " + String(temperatureC2) + "ºC");
+    return temperatureC1;
 }
 
 String PilsHttpClient::getWarmBatchId(boolean readOnly)
@@ -78,7 +83,7 @@ void PilsHttpClient::getBatch()
         {
             http.begin(getBatchUrl);
             http.setTimeout(3000);
-            http.addHeader("xxxauth", "halla");
+            http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
             int httpCode = http.POST("");
             Serial.println("Starting get batch");
             if (httpCode > 0)
@@ -118,7 +123,7 @@ void PilsHttpClient::getIsActive()
             url.replace(":batchId", warmBatchId);
             http.begin(url);
             http.setTimeout(3000);
-            http.addHeader("xxxauth", "halla");
+            http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
             int httpCode = http.GET();
             Serial.println("Starting get is batch active");
             if (httpCode > 0)
@@ -160,7 +165,7 @@ void PilsHttpClient::postHasRestarted()
             url.replace(":batchId", warmBatchId);
             http.begin(url);
             http.setTimeout(3000);
-            http.addHeader("xxxauth", "halla");
+            http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
             int httpCode = http.POST("");
             Serial.println("Starting post restarted");
             if (httpCode > 0)

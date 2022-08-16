@@ -7,6 +7,7 @@
 #include <DallasTemperature.h>
 #include <Preferences.h>
 #include <pilsUtils.h>
+#include <secrets.h>
 
 class PilsHttpClient
 {
