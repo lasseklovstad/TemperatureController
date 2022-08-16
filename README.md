@@ -10,3 +10,17 @@ https://dl.espressif.com/dl/package_esp32_index.json
 - Temperatursensorer: https://www.kjell.com//no/produkter/elektro-og-verktoy/arduino/arduino-tilbehor/temperatursensor-med-kabel-for-arduino-p87081?gclid=Cj0KCQjwl92XBhC7ARIsAHLl9anOC9kdvfvSgM9x28svqZxWZjA8ROQ5SkjZHJSC5a9UnYk9fOaToNkaAoWiEALw_wcB&gclsrc=aw.ds
 - Temperatursensor: https://artigereliv.no/produkt/elektronikk/mikrokontrollere/sensorer-og-tilbehor/dallas-ds18b20-digital-temperatur-sensor-med-ledning?gclid=Cj0KCQjwl92XBhC7ARIsAHLl9am0ookwZjUFmHqW9bNEjpptY87niJd_JahrTVE74--7rXqxQpLHNtwaAvVwEALw_wcB#
 - Temperatursensor 3m: https://www.digitalimpuls.no/diverse/145322/vanntett-digital-temperatur-sensor-ds18b20-3m-kabel?gclid=Cj0KCQjwl92XBhC7ARIsAHLl9am8ZiWL4c_Sx4oGCVEDSAc8K8lvmKgcfRD4MckElD7ZGaHkuAExDcgaAlUIEALw_wcB
+
+# Secrets
+
+Legg til fil `src/secrets.h` med innhold:
+
+```c++
+#ifndef SECRETS_H
+#define SECRETS_H
+#define SECRET_WIFI_SSID "ssid"
+#define SECRET_WIFI_PASSWORD "password"
+#define SECRET_AUTH_HEADER_NAME "header"
+#define SECRET_AUTH_HEADER_VALUE "header value"
+#endif
+```
