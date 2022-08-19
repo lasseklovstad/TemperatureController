@@ -62,14 +62,13 @@ void loop()
   {
     getBatchTimerStart = millis();
     pilsHttpClient.postHasRestarted();
-    pilsHttpClient.getIsActive();
-    pilsHttpClient.getBatch();
+    pilsHttpClient.postMicroController();
   }
 
   if (millis() - tryReconnectTimerStart >= 10000)
   {
     tryReconnectTimerStart = millis();
     pilsWifiServer.tryReconnectWifi();
-    pilsHttpClient.setupTempSensors();
+    pilsHttpClient.readTemperatureSensorsAndPost();
   }
 }

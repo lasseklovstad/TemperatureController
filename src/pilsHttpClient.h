@@ -14,23 +14,21 @@ class PilsHttpClient
 private:
     HTTPClient http;
     String baseUrl = "https://pils.gataersamla.no/api/microcontroller/";
-    String getBatchUrl = baseUrl + "batch/warm";
-    String postTemperatureUrl = baseUrl + ":batchId/temperature";
-    String getActiveUrl = baseUrl + ":batchId/active";
-    String postHasRestartedUrl = baseUrl + ":batchId/restarted";
+    String postMicroControllerUrl = baseUrl;
+    String postTemperatureUrl = baseUrl + ":controllerId/temperature";
+    String postHasRestartedUrl = baseUrl + ":controllerId/restarted";
+    String controllerId;
     const int oneWireBus = 4;
     DallasTemperature sensors;
     Preferences preferences;
-    float getTemperature();
-    String getWarmBatchId(boolean readOnly);
+    void getTemperature(float *temps);
     boolean hasRestarted = true;
 
 public:
     PilsHttpClient();
-    void sendWarmTemperatureBatch(String warmBatchId, float temperatureC);
-    void setupTempSensors();
-    void getBatch();
-    void getIsActive();
+    void postTemperature(float temperatureC, String type);
+    void readTemperatureSensorsAndPost();
+    void postMicroController();
     void postHasRestarted();
 };
 
