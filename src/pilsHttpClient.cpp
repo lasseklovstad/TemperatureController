@@ -1,27 +1,58 @@
 #include <pilsHttpClient.h>
 
+void startPost(HTTPClient &http, String &url, const char *body, boolean json, const std::function<void(int)> &callback)
+{
+    http.begin(url);
+    http.setTimeout(3000);
+    http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
+    if (json)
+    {
+        http.addHeader("Content-Type", "application/json");
+    }
+    int httpCode = http.POST(body);
+    if (httpCode > 0)
+    {
+        callback(httpCode);
+        if (httpCode >= 400)
+        {
+            Serial.println(String("Post error: ") + httpCode + " " + url);
+        }
+    }
+    http.end();
+}
+
 PilsHttpClient::PilsHttpClient()
 {
+}
+
+void PilsHttpClient::setup()
+{
     bool storeOpened = preferences.begin("pils-app", true);
+    if (!storeOpened)
+    {
+        Serial.println("Store failed to open");
+        preferences.end();
+    }
     String storedControllerId = preferences.getString("controllerId", "");
     if (!storedControllerId.isEmpty())
     {
         controllerId = storedControllerId;
         Serial.println("Found controllerId: " + controllerId);
     }
+    else
+    {
+        Serial.println("Not Found controllerId: " + storedControllerId);
+    }
+
     preferences.end();
 }
 
-void PilsHttpClient::postTemperature(float temperatureC, String type)
+void PilsHttpClient::postTemperature(const float temperatureC, const char *type)
 {
     if (isConnected() && !controllerId.isEmpty())
     {
-        Serial.println("Starting post temp");
         String url = postTemperatureUrl;
         url.replace(":controllerId", controllerId);
-        http.begin(url);
-        http.setTimeout(3000);
-        http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
 
         String body = "{ \"temp\": ";
         body += String(temperatureC);
@@ -29,25 +60,19 @@ void PilsHttpClient::postTemperature(float temperatureC, String type)
         body += type;
         body += "\" }";
 
-        Serial.println(body);
-
-        int httpCode = http.POST(body);
-        if (httpCode > 0)
+        auto onSuccess = [&](int httpCode)
         {
-            // HTTP header has been send and Server response header has been handled
-            Serial.printf("[HTTP] POST... code: %d\n", httpCode);
-
-            // file found at server
             if (httpCode == HTTP_CODE_NO_CONTENT)
             {
-                Serial.println("Temperature sent ok! " + type);
+                // Ok!
             }
-        }
-        else
-        {
-            Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
-        }
-        http.end();
+            else if (httpCode == HTTP_CODE_NOT_FOUND)
+            {
+                controllerId.clear();
+            }
+        };
+
+        startPost(http, url, body.c_str(), true, onSuccess);
     }
 }
 
@@ -80,6 +105,8 @@ void PilsHttpClient::readTemperatureSensorsAndPost()
     }
 }
 
+typedef void (*HttpCallbackFunction)(int);
+
 void PilsHttpClient::postMicroController()
 {
 
@@ -89,30 +116,19 @@ void PilsHttpClient::postMicroController()
         http.setTimeout(3000);
         http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
         int httpCode = http.POST("Pils Controller 1");
-        Serial.println("Starting post microcontroller");
-        if (httpCode > 0)
+        auto onSuccess = [&](int httpCode)
         {
-            // HTTP header has been send and Server response header has been handled
-            Serial.printf("[HTTP] POST... code: %d\n", httpCode);
-
-            // file found at server
             if (httpCode == HTTP_CODE_OK)
             {
                 String payload = http.getString();
                 Serial.println(payload);
-                // Save batch Id
-                // Save
                 preferences.begin("pils-app", false);
                 preferences.putString("controllerId", payload.c_str());
                 controllerId = payload;
                 preferences.end();
             }
-        }
-        else
-        {
-            Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
-        }
-        http.end();
+        };
+        startPost(http, postMicroControllerUrl, "Pils Controller 1", false, onSuccess);
     }
 }
 
@@ -124,17 +140,8 @@ void PilsHttpClient::postHasRestarted()
 
         String url = postHasRestartedUrl;
         url.replace(":controllerId", controllerId);
-        http.begin(url);
-        http.setTimeout(3000);
-        http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
-        int httpCode = http.POST("");
-        Serial.println("Starting post restarted");
-        if (httpCode > 0)
+        auto onSuccess = [&](int httpCode)
         {
-            // HTTP header has been send and Server response header has been handled
-            Serial.printf("[HTTP] POST... code: %d\n", httpCode);
-
-            // file found at server
             if (httpCode == HTTP_CODE_NO_CONTENT)
             {
                 Serial.println("Successfully sendt restart!");
@@ -146,11 +153,7 @@ void PilsHttpClient::postHasRestarted()
                 Serial.println("Controller id finnes ikke!");
                 controllerId.clear();
             }
-        }
-        else
-        {
-            Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
-        }
-        http.end();
+        };
+        startPost(http, url, "", false, onSuccess);
     }
 }

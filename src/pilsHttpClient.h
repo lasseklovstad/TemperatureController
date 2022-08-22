@@ -26,10 +26,11 @@ private:
 
 public:
     PilsHttpClient();
-    void postTemperature(float temperatureC, String type);
+    void postTemperature(const float temperatureC, const char *type);
     void readTemperatureSensorsAndPost();
     void postMicroController();
     void postHasRestarted();
+    void setup();
 };
 
 #endif

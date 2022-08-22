@@ -42,7 +42,7 @@ void setup()
   Serial.begin(115200);
 
   pilsWifiServer.setup();
-
+  pilsHttpClient.setup();
   Serial.println("Starting timers");
   initTimers();
   Serial.println("Init done");
