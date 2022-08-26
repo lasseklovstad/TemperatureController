@@ -6,6 +6,7 @@
 #include <Preferences.h>
 #include <pilsUtils.h>
 #include <secrets.h>
+#include <pilsTimer.h>
 
 class PilsWifiServer
 {

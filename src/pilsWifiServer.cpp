@@ -48,8 +48,6 @@ String getPage()
     }
     else if (scanResult > 0)
     {
-        Serial.printf(PSTR("%d networks found:\n"), scanResult);
-
         // Print unsorted scan results
         for (int8_t i = 0; i < scanResult; i++)
         {
@@ -105,7 +103,7 @@ void PilsWifiServer::handleForm()
         String passwordString = server.arg(0);
 
         // Save
-        preferences.begin("pils-app", false);
+        preferences.begin(APP_STORAGE_NAME, false);
         preferences.putString("ssid", ssidString.c_str());
         preferences.putString("password", passwordString.c_str());
         preferences.end();
@@ -119,20 +117,19 @@ void PilsWifiServer::handleForm()
 
         int retries = 0;
 
-        while (WiFi.status() != WL_CONNECTED && retries <= 10)
+        PilsTimer retryTimer;
+        bool connected = false;
+        auto updateStatus = [&]()
         {
-            delay(500);
-            Serial.print(".");
+            connected = WiFi.status() == WL_CONNECTED;
             retries++;
+        };
+        retryTimer.setup(updateStatus, 500);
+
+        while (!connected && retries <= 10)
+        {
+            retryTimer.loop();
         }
-        Serial.println();
-        Serial.print("Status" + getWifiStatusText());
-        Serial.println();
-        Serial.print("IsConnected" + WiFi.isConnected());
-        Serial.println();
-        Serial.println("IP address: ");
-        Serial.println(WiFi.localIP());
-        Serial.println();
 
         server.send(200, "text/html", getPage());
     }
@@ -142,7 +139,7 @@ void PilsWifiServer::tryReconnectWifi()
 {
     if (!isConnected())
     {
-        bool storeOpened = preferences.begin("pils-app", true);
+        bool storeOpened = preferences.begin(APP_STORAGE_NAME, true);
         String storedSsid = preferences.getString("ssid", "");
         String storedpassword = preferences.getString("password", "");
 

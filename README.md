@@ -22,5 +22,6 @@ Legg til fil `src/secrets.h` med innhold:
 #define SECRET_WIFI_PASSWORD "password"
 #define SECRET_AUTH_HEADER_NAME "header"
 #define SECRET_AUTH_HEADER_VALUE "header value"
+#define APP_STORAGE_NAME "pils-app"
 #endif
 ```

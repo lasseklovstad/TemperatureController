@@ -28,7 +28,7 @@ PilsHttpClient::PilsHttpClient()
 void PilsHttpClient::setup()
 {
 
-    bool storeOpened = preferences.begin("pils-app", true);
+    bool storeOpened = preferences.begin(APP_STORAGE_NAME, true);
     if (!storeOpened)
     {
         Serial.println("Store failed to open");
@@ -119,7 +119,7 @@ void PilsHttpClient::postMicroController()
             {
                 String payload = http.getString();
                 Serial.println(payload);
-                preferences.begin("pils-app", false);
+                preferences.begin(APP_STORAGE_NAME, false);
                 preferences.putString("controllerId", payload.c_str());
                 controllerId = payload;
                 preferences.end();
