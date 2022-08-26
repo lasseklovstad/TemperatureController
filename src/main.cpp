@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <pilsWifiServer.h>
 #include <pilsHttpClient.h>
+#include <pilsTimer.h>
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
@@ -8,14 +9,13 @@
 
 bool ledOn = false;
 
-unsigned long ledTimerStart;
-unsigned long getBatchTimerStart;
-unsigned long tryReconnectTimerStart;
-
 PilsWifiServer pilsWifiServer;
 PilsHttpClient pilsHttpClient;
+PilsTimer ledTimer;
+PilsTimer reconnectTimer;
+PilsTimer microControllerTimer;
 
-void turnLedOnOff()
+auto toggleLedd = [&]()
 {
   if (ledOn == true)
   {
@@ -27,14 +27,20 @@ void turnLedOnOff()
     digitalWrite(BUILTIN_LED, HIGH);
     ledOn = true;
   }
-}
+};
 
-void initTimers()
+auto handleMicroController = [&]()
 {
-  ledTimerStart = millis();
-  getBatchTimerStart = millis();
-  tryReconnectTimerStart = millis();
-}
+  pilsHttpClient.postHasRestarted();
+  pilsHttpClient.postMicroController();
+  pilsHttpClient.readTemperatureSensorsAndPost();
+};
+
+auto handleReconnect = [&]()
+{
+  pilsWifiServer.tryReconnectWifi();
+  // Serial.println(ESP.getFreeHeap());
+};
 
 void setup()
 {
@@ -43,32 +49,18 @@ void setup()
 
   pilsWifiServer.setup();
   pilsHttpClient.setup();
-  Serial.println("Starting timers");
-  initTimers();
+
+  ledTimer.setup(toggleLedd, 1000);
+  reconnectTimer.setup(handleReconnect, 10000);
+  microControllerTimer.setup(handleMicroController, 10000);
+
   Serial.println("Init done");
 }
 
 void loop()
 {
   pilsWifiServer.loop();
-
-  if (millis() - ledTimerStart >= 1000)
-  {
-    ledTimerStart = millis();
-    turnLedOnOff();
-  }
-
-  if (millis() - getBatchTimerStart >= 10000)
-  {
-    getBatchTimerStart = millis();
-    pilsHttpClient.postHasRestarted();
-    pilsHttpClient.postMicroController();
-  }
-
-  if (millis() - tryReconnectTimerStart >= 10000)
-  {
-    tryReconnectTimerStart = millis();
-    pilsWifiServer.tryReconnectWifi();
-    pilsHttpClient.readTemperatureSensorsAndPost();
-  }
+  ledTimer.loop();
+  microControllerTimer.loop();
+  reconnectTimer.loop();
 }

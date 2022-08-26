@@ -27,6 +27,7 @@ PilsHttpClient::PilsHttpClient()
 
 void PilsHttpClient::setup()
 {
+
     bool storeOpened = preferences.begin("pils-app", true);
     if (!storeOpened)
     {
@@ -83,13 +84,10 @@ void PilsHttpClient::getTemperature(float *temps)
     sensors.begin();
     int deviceCount = sensors.getDeviceCount();
 
-    Serial.println("Temperature devices: " + deviceCount);
-
     sensors.requestTemperatures();
     float temperatureC1 = sensors.getTempCByIndex(0);
     float temperatureC2 = sensors.getTempCByIndex(1);
-    Serial.println("Temp 1: " + String(temperatureC1) + "ºC");
-    Serial.println("Temp 2: " + String(temperatureC2) + "ºC");
+
     temps[0] = temperatureC1;
     temps[1] = temperatureC2;
 }
@@ -102,10 +100,9 @@ void PilsHttpClient::readTemperatureSensorsAndPost()
         getTemperature(temps);
         postTemperature(temps[0], "WARM");
         postTemperature(temps[1], "COLD");
+        delete[] temps;
     }
 }
-
-typedef void (*HttpCallbackFunction)(int);
 
 void PilsHttpClient::postMicroController()
 {
