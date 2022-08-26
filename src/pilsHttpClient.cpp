@@ -1,196 +1,156 @@
 #include <pilsHttpClient.h>
 
-PilsHttpClient::PilsHttpClient() {}
-
-void PilsHttpClient::sendWarmTemperatureBatch(String warmBatchId, float temperatureC)
+void startPost(HTTPClient &http, String &url, const char *body, boolean json, const std::function<void(int)> &callback)
 {
-    if (isConnected())
+    http.begin(url);
+    http.setTimeout(3000);
+    http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
+    if (json)
     {
-        Serial.println("Starting post batch");
-        String url = postTemperatureUrl;
-        url.replace(":batchId", warmBatchId);
-        http.begin(url);
-        http.setTimeout(3000);
-        http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
-        int httpCode = http.POST(String(temperatureC));
-        if (httpCode > 0)
+        http.addHeader("Content-Type", "application/json");
+    }
+    int httpCode = http.POST(body);
+    if (httpCode > 0)
+    {
+        callback(httpCode);
+        if (httpCode >= 400)
         {
-            // HTTP header has been send and Server response header has been handled
-            Serial.printf("[HTTP] POST... code: %d\n", httpCode);
+            Serial.println(String("Post error: ") + httpCode + " " + url);
+        }
+    }
+    http.end();
+}
 
-            // file found at server
+PilsHttpClient::PilsHttpClient()
+{
+}
+
+void PilsHttpClient::setup()
+{
+
+    bool storeOpened = preferences.begin("pils-app", true);
+    if (!storeOpened)
+    {
+        Serial.println("Store failed to open");
+        preferences.end();
+    }
+    String storedControllerId = preferences.getString("controllerId", "");
+    if (!storedControllerId.isEmpty())
+    {
+        controllerId = storedControllerId;
+        Serial.println("Found controllerId: " + controllerId);
+    }
+    else
+    {
+        Serial.println("Not Found controllerId: " + storedControllerId);
+    }
+
+    preferences.end();
+}
+
+void PilsHttpClient::postTemperature(const float temperatureC, const char *type)
+{
+    if (isConnected() && !controllerId.isEmpty())
+    {
+        String url = postTemperatureUrl;
+        url.replace(":controllerId", controllerId);
+
+        String body = "{ \"temp\": ";
+        body += String(temperatureC);
+        body += ", \"type\": \"";
+        body += type;
+        body += "\" }";
+
+        auto onSuccess = [&](int httpCode)
+        {
             if (httpCode == HTTP_CODE_NO_CONTENT)
             {
-                Serial.println("Temperature sent ok!");
+                // Ok!
             }
-        }
-        else
-        {
-            Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
-        }
-        http.end();
+            else if (httpCode == HTTP_CODE_NOT_FOUND)
+            {
+                controllerId.clear();
+            }
+        };
+
+        startPost(http, url, body.c_str(), true, onSuccess);
     }
 }
 
-float PilsHttpClient::getTemperature()
+void PilsHttpClient::getTemperature(float *temps)
 {
     OneWire oneWire(oneWireBus);
     sensors.setOneWire(&oneWire);
     sensors.begin();
     int deviceCount = sensors.getDeviceCount();
 
-    Serial.println("Temperature devices: " + deviceCount);
-
     sensors.requestTemperatures();
     float temperatureC1 = sensors.getTempCByIndex(0);
     float temperatureC2 = sensors.getTempCByIndex(1);
-    Serial.println("Temp 1: " + String(temperatureC1) + "ºC");
-    Serial.println("Temp 2: " + String(temperatureC2) + "ºC");
-    return temperatureC1;
+
+    temps[0] = temperatureC1;
+    temps[1] = temperatureC2;
 }
 
-String PilsHttpClient::getWarmBatchId(boolean readOnly)
+void PilsHttpClient::readTemperatureSensorsAndPost()
 {
-    bool storeOpened = preferences.begin("pils-app", readOnly);
-    if (storeOpened == false)
+    if (isConnected() && controllerId != NULL)
     {
-        return "";
-    }
-    return preferences.getString("warmBatchId", "");
-}
-
-void PilsHttpClient::setupTempSensors()
-{
-    if (isConnected())
-    {
-        float temperatureC = getTemperature();
-        String warmBatchId = getWarmBatchId(true);
-        if (warmBatchId != "")
-        {
-            sendWarmTemperatureBatch(warmBatchId, temperatureC);
-        }
-        preferences.end();
+        float *temps = new float[2];
+        getTemperature(temps);
+        postTemperature(temps[0], "WARM");
+        postTemperature(temps[1], "COLD");
+        delete[] temps;
     }
 }
 
-void PilsHttpClient::getBatch()
+void PilsHttpClient::postMicroController()
 {
 
-    if (isConnected())
+    if (isConnected() && controllerId.isEmpty())
     {
-        String warmBatchId = getWarmBatchId(false);
-        if (warmBatchId == "")
+        http.begin(postMicroControllerUrl);
+        http.setTimeout(3000);
+        http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
+        int httpCode = http.POST("Pils Controller 1");
+        auto onSuccess = [&](int httpCode)
         {
-            http.begin(getBatchUrl);
-            http.setTimeout(3000);
-            http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
-            int httpCode = http.POST("");
-            Serial.println("Starting get batch");
-            if (httpCode > 0)
+            if (httpCode == HTTP_CODE_OK)
             {
-                // HTTP header has been send and Server response header has been handled
-                Serial.printf("[HTTP] GET... code: %d\n", httpCode);
-
-                // file found at server
-                if (httpCode == HTTP_CODE_OK)
-                {
-                    String payload = http.getString();
-                    Serial.println(payload);
-                    // Save batch Id
-                    // Save
-                    preferences.putString("warmBatchId", payload.c_str());
-                }
+                String payload = http.getString();
+                Serial.println(payload);
+                preferences.begin("pils-app", false);
+                preferences.putString("controllerId", payload.c_str());
+                controllerId = payload;
+                preferences.end();
             }
-            else
-            {
-                Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
-            }
-            http.end();
-        }
-        preferences.end();
-    }
-}
-
-void PilsHttpClient::getIsActive()
-{
-
-    if (isConnected())
-    {
-        String warmBatchId = getWarmBatchId(false);
-        if (warmBatchId != "")
-        {
-            String url = getActiveUrl;
-            url.replace(":batchId", warmBatchId);
-            http.begin(url);
-            http.setTimeout(3000);
-            http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
-            int httpCode = http.GET();
-            Serial.println("Starting get is batch active");
-            if (httpCode > 0)
-            {
-                // HTTP header has been send and Server response header has been handled
-                Serial.printf("[HTTP] GET... code: %d\n", httpCode);
-
-                // file found at server
-                if (httpCode == HTTP_CODE_OK)
-                {
-                    String payload = http.getString();
-                    Serial.println(payload);
-                    if (payload == "false")
-                    {
-                        Serial.println("Batch id inactive!");
-                        preferences.putString("warmBatchId", "");
-                    }
-                }
-            }
-            else
-            {
-                Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
-            }
-            http.end();
-        }
-        preferences.end();
+        };
+        startPost(http, postMicroControllerUrl, "Pils Controller 1", false, onSuccess);
     }
 }
 
 void PilsHttpClient::postHasRestarted()
 {
 
-    if (hasRestarted && isConnected())
+    if (hasRestarted && !controllerId.isEmpty() && isConnected())
     {
-        String warmBatchId = getWarmBatchId(false);
-        if (warmBatchId != "")
-        {
-            String url = postHasRestartedUrl;
-            url.replace(":batchId", warmBatchId);
-            http.begin(url);
-            http.setTimeout(3000);
-            http.addHeader(SECRET_AUTH_HEADER_NAME, SECRET_AUTH_HEADER_VALUE);
-            int httpCode = http.POST("");
-            Serial.println("Starting post restarted");
-            if (httpCode > 0)
-            {
-                // HTTP header has been send and Server response header has been handled
-                Serial.printf("[HTTP] GET... code: %d\n", httpCode);
 
-                // file found at server
-                if (httpCode == HTTP_CODE_NO_CONTENT)
-                {
-                    Serial.println("Successfully sendt restart!");
-                    hasRestarted = false;
-                }
-                else if (httpCode == HTTP_CODE_SERVICE_UNAVAILABLE)
-                {
-                    // Når id ikke finnes
-                    Serial.println("Batch id finnes ikke!");
-                    preferences.putString("warmBatchId", "");
-                }
-            }
-            else
+        String url = postHasRestartedUrl;
+        url.replace(":controllerId", controllerId);
+        auto onSuccess = [&](int httpCode)
+        {
+            if (httpCode == HTTP_CODE_NO_CONTENT)
             {
-                Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+                Serial.println("Successfully sendt restart!");
+                hasRestarted = false;
             }
-            http.end();
-        }
+            else if (httpCode == HTTP_CODE_SERVICE_UNAVAILABLE)
+            {
+                // Når id ikke finnes
+                Serial.println("Controller id finnes ikke!");
+                controllerId.clear();
+            }
+        };
+        startPost(http, url, "", false, onSuccess);
     }
 }
